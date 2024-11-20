@@ -1,0 +1,618 @@
+---
+title: "Exploring the Relationship Between Unemployment and Crime Rates in Chicago: A 2022 Analysis"
+output: html_document
+date: "2024-04-17"
+---
+
+```{r, include=FALSE}
+library(conflicted)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(lubridate)
+library(tidyverse)
+
+```
+<h1>Group Member:</h1> <ul>
+    <li>Anurag</li>
+    <li>Yutai</li>
+    <li>Bobby</li>
+    <li>Adlin</li>
+</ul>
+<h1>Introduction</h1> <p>Crime is a pervasive issue that affects communities across the United States, and understanding the factors that contribute to crime rates is crucial for developing effective strategies to reduce crime and improve public safety. This report aims to explore the relationship between crime rates and socioeconomic factors, specifically focusing on the unemployment rate, in community areas of Chicago. By analyzing crime data and demographic data from 2022, we seek to determine if there is a significant correlation between the unemployment rate and the crime rate, with a particular emphasis on violent crime. The motivation behind this analysis is to provide insights that can inform policy decisions and resource allocation aimed at reducing crime and promoting safer communities. The thesis statement of this report is as follows: Based on the analysis of crime and demographic data from Chicago in 2022, there is a significant positive correlation between the unemployment rate and the crime rate, particularly violent crime, in community areas of the city.
+
+</p> 
+
+<p>The primary question of interest in this analysis is: Is there a significant correlation between the unemployment rate and the crime rate, particularly violent crime, in Chicago community areas?
+
+</p> 
+<p>Based on the analysis of crime and demographic data from Chicago in 2022, we want to show that there is a significant positive correlation between the unemployment rate and the crime rate, particularly violent crime, in community areas of the city.</p>
+
+<h1>Background</h1> <p>The analysis in this report utilizes two main datasets: crime data and demographic data for Chicago in 2022. The crime data is obtained from the "Crimes - 2001 to Present" dataset, which is publicly available on the Chicago Data Portal <a href="https://catalog.data.gov/dataset/crimes-2001-to-present">(https://catalog.data.gov/dataset/crimes-2001-to-present)</a>^[https://catalog.data.gov/dataset/crimes-2001-to-present]. This dataset contains information about reported crimes in Chicago, including the date, primary type of crime, and the community area where the crime occurred. The data is collected and maintained by the Chicago Police Department.</p><p>The demographic data is sourced from the <a href="https://datahub.cmap.illinois.gov/datasets/CMAPGIS::community-data-snapshots-raw-data-2014-2022/explore?layer=21">"Community Data Snapshots Raw Data 2014-2022" dataset ^[https://datahub.cmap.illinois.gov/datasets/CMAPGIS::community-data-snapshots-raw-data-2014-2022/explore?layer=21]</a>, specifically the "CCA_2022" layer, which is available on the Chicago Metropolitan Agency for Planning (CMAP) Data Hub. This dataset provides information about the population, unemployment rate, and other socioeconomic indicators for each community area in Chicago.</p> <p>The key variables used in the analysis are:</p> <ul> <li>Crime_Percent: The percentage of crimes in each community area relative to the total population.</li> <li>Unemployment_rate: The unemployment rate in each community area, calculated as the number of unemployed individuals divided by the total population.</li> </ul> <p>To prepare the data for analysis, the crime data is filtered to include only records from 2022, and the relevant variables (date, primary type of crime, and community area) are selected. The demographic data is also filtered to include the relevant variables (community area, total population, and unemployment rate) for 2022. The two datasets are then merged based on the community area, allowing for the calculation of the crime percentage and unemployment rate for each area.</p> <p>It is important to note that the crime data relies on reported crimes and may not capture all criminal activities in the city. Additionally, the analysis focuses on the relationship between the unemployment rate and crime rate at the community area level and does not consider other potential confounding factors that may influence crime rates, such as education levels, income inequality, or access to social services.</p> <p>The report is structured in three parts. The first part focuses on a hypothesis test to determine if there is a significant correlation between the general crime rate and the unemployment rate. The second part explores the relationship between violent crime specifically and the unemployment rate. The third part provides visualizations of the data on geo maps to offer a spatial perspective on the distribution of crime and unemployment across the city.</p>
+
+<p>
+Chicago Metropolitan Agency for Planning, N. (2023, June 21). Community Data Snapshots Raw Data (2014 - 2022). https://datahub.cmap.illinois.gov/datasets/CMAPGIS::community-data-snapshots-raw-data-2014-2022/about?layer=21 
+
+City of Chicago, (2010, November 10). Crimes - 2001 to Present. https://catalog.data.gov/dataset/crimes-2001-to-present
+
+City of Chicago, (2024). Boundaries - Community Areas (current). https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6
+
+
+</p>
+```{r, include=FALSE}
+conflicted::conflicts_prefer(dplyr::filter)
+
+crime_data <- read_csv("/Users/adlinfarhana/Documents/stat240/data/crime.csv")
+
+
+
+crime_data_2022 <- crime_data %>%
+  filter(Year == 2022)
+```
+<h1>Analysis</h1> <h2>Data Preview</h2> <p>Before diving into the analysis, let's take a quick look at the data.</p> <h3>Crime Data 2022 (First 5 rows)</h3> 
+
+
+```{r, echo=FALSE}
+
+crime_data_2022_filtered <- crime_data_2022 %>%
+  select(Date, `Primary Type`, `Community Area`)
+
+demographics_2022_original <- read_csv("/Users/adlinfarhana/Documents/stat240/data/2022_cca.csv", show_col_types = FALSE)
+crime_counts_by_area_and_year <- crime_data_2022_filtered %>%
+  filter(!is.na(`Community Area`)) %>%
+  group_by(`Community Area`) %>%
+  summarise(Crime_Count = n(), .groups = 'drop')
+
+# Data preview
+head(crime_data_2022_filtered, 5)
+
+
+head(demographics_2022_original, 5)
+```
+<h2>Summary Statistics</h2> <h3>Crime Count by Community Area</h3>
+```{r, echo=FALSE}
+# Summary statistics
+summary(crime_counts_by_area_and_year$Crime_Count)
+```
+
+```{r, echo=FALSE}
+ggplot(crime_counts_by_area_and_year, aes(x = `Community Area`, y = Crime_Count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(x = "Community Area", y = "Crime Count",
+       title = "Crime Counts by Community Area") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+<h3>Total Population by Community Area</h3> 
+```{r, echo=FALSE}
+
+demographics_2022 <- demographics_2022_original %>%
+  rename(
+    `Community Area` = OBJECTID,
+    `total_population` = TOT_POP
+  ) %>%
+  mutate(Year = 2022) %>%
+  select(`Community Area`, total_population, UNEMP, Year, TOT_ACRES)
+
+# Summary statistics
+summary(demographics_2022$total_population)
+```
+<h3>Unemployment Rate by Community Area</h3> 
+```{r,echo=FALSE}
+summary(demographics_2022$UNEMP)
+```
+
+
+
+```{r, echo=FALSE}
+
+combined_data_2022 <- merge(demographics_2022, crime_counts_by_area_and_year, by = "Community Area", all.x = TRUE)
+
+all_combined_data <- combined_data_2022 %>%
+  mutate(
+    Crime_Percent = (Crime_Count / total_population) * 100,
+    Unemployment_rate = UNEMP / total_population * 100
+  )
+
+# Data preview
+head(all_combined_data, 5)
+
+# Summary statistics
+summary(all_combined_data$Crime_Percent)
+summary(all_combined_data$Unemployment_rate)
+
+```
+<h2>Statistical Tests </h2>
+<p> We are using correlation between two variables whether these variables are related to each other or not. The correlation coefficient r is a measure of the strength of a linear relationship between two quantitative variables x and y which are crime rate and unemployment rate. </p> 
+$$
+r = \mathsf{Corr}(x,y) 
+$$
+<p> We will also be calculating the 95% confidence interval and p-value in determining the strength correlation between these two variables </p>
+
+
+```{r, include=FALSE} 
+
+#steps to gather data finding correlation
+
+
+filtered_cca_22 <- demographics_2022_original %>%
+  select(GEOID,
+        GEOG,
+        TOT_POP,
+        INCPERCAP,
+        BACH,
+        GRAD_PROF,
+        MEDINC,
+        UNEMP
+        
+      ) %>%
+  rename(community_area = GEOID) 
+
+crime_data_recent <- crime_data %>% 
+  filter(Year == 2022)
+
+crime_categories <- crime_data_recent %>%
+  mutate(Category = case_when(
+    `Primary Type` %in% c("BATTERY", "ASSAULT", "ROBBERY", "CRIMINAL SEXUAL ASSAULT", "HOMICIDE", "KIDNAPPING", "INTIMIDATION", "CRIM SEXUAL ASSAULT", "HUMAN TRAFFICKING") ~ "Violent crimes",
+    `Primary Type` %in% c("THEFT", "BURGLARY", "MOTOR VEHICLE THEFT", "CRIMINAL DAMAGE", "ARSON") ~ "Property crimes",
+    `Primary Type` %in% c("NARCOTICS", "OTHER NARCOTIC VIOLATION") ~ "Drug-related crimes",
+    `Primary Type` %in% c("WEAPONS VIOLATION", "CONCEALED CARRY LICENSE VIOLATION") ~ "Weapons offenses",
+    `Primary Type` %in% c("OTHER OFFENSE", "DECEPTIVE PRACTICE", "OFFENSE INVOLVING CHILDREN", "CRIMINAL TRESPASS", "INTERFERENCE WITH PUBLIC OFFICER", "PUBLIC PEACE VIOLATION", "PROSTITUTION", "STALKING", "GAMBLING", "LIQUOR LAW VIOLATION", "OBSCENITY", "PUBLIC INDECENCY", "RITUALISM") ~ "Public order crimes",
+    `Primary Type` == "SEX OFFENSE" ~ "Sex offenses",
+    `Primary Type` == "NON-CRIMINAL" ~ "Non-criminal incidents",
+    TRUE ~ "Other"
+  ))
+
+category_pivot_2022 <- crime_categories %>%
+  group_by(`Community Area`, Category) %>%
+  summarise(Count = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = Category, 
+              values_from = Count,
+              values_fill = 0) %>%
+  rename(community_area = `Community Area`)
+```
+```{r,echo=FALSE}
+#data that will be used 
+merged_data <- merge(category_pivot_2022, filtered_cca_22 )
+merged_data <- merged_data %>%
+  rename(
+         total_population = TOT_POP,
+         income_capita = INCPERCAP)
+
+
+
+
+merged_data <- merge(category_pivot_2022, filtered_cca_22 )
+merged_data <- merged_data %>%
+  rename(
+         total_population = TOT_POP,
+         income_capita = INCPERCAP)
+
+vio_offenses <- merged_data %>%
+  select(community_area, `Violent crimes`, total_population, BACH, GRAD_PROF, income_capita, MEDINC, UNEMP)
+
+vio_filtered <- vio_offenses %>%
+   mutate(crime_percent = (`Violent crimes` / total_population) * 100,
+         Unemployment_rate = UNEMP / total_population * 100) %>%  # Added closing parenthesis
+  select(-BACH, -GRAD_PROF) %>%  # Added closing parenthesis
+  arrange(crime_percent)
+violent_unemployment = cor.test(vio_filtered$Unemployment_rate, vio_filtered$crime_percent)
+violent_unemployment
+```
+
+<h2>Visualizations</h2> <h3>Crime Counts by Community Area</h3> <p>This bar plot shows the total crime count for each community area in Chicago. It provides an overview of which areas have the highest and lowest crime counts.</p> 
+```{r, echo=FALSE} 
+ggplot(crime_counts_by_area_and_year, aes(x = `Community Area`, y = Crime_Count)) + geom_bar(stat = "identity", fill = "steelblue") + labs(x = "Community Area", y = "Crime Count", title = "Crime Counts by Community Area") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+``` 
+<h3>Total Population by Community Area</h3> <p>This bar plot displays the total population for each community area in Chicago. It helps to understand the population distribution across different areas.</p> 
+```{r, echo=FALSE} 
+ggplot(demographics_2022, aes(x = `Community Area`, y = total_population)) + geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Total Population by Community Area in Chicago (2022)", x = "Community Area", y = "Total Population") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+``` 
+<h3>Distribution of Crime</h3> <p>This density plot illustrates the distribution of total crime counts across community areas. It shows the shape of the distribution and identifies any potential outliers or unusual patterns.</p> 
+```{r, echo=FALSE} 
+ggplot(all_combined_data, aes(x = Crime_Count)) + geom_density(fill = "lightblue", alpha = 0.6) + labs(x = "Total Crime", y = "Density", title = "Distribution of Crime") + theme_minimal() 
+``` 
+<h3>Distribution of Population</h3> <p>This density plot represents the distribution of population across community areas. It provides insights into the population density and identifies areas with high or low population concentrations.</p> 
+```{r, echo=FALSE} 
+ggplot(all_combined_data, aes(x = total_population)) + geom_density(fill = "lightblue", alpha = 0.6) + labs(x = "Total Pop", y = "Density", title = "Distribution of Population") + theme_minimal() 
+``` 
+
+<h3>Distribution of Unemployment Rate</h3> <p>This density plot displays the distribution of unemployment rates across community areas. It provides an overview of the unemployment situation in different parts of Chicago.</p> 
+```{r, echo=FALSE} 
+ggplot(all_combined_data, aes(x = Unemployment_rate)) + geom_density(fill = "lightblue", alpha = 0.6) + labs(x = "Unemployment Rate", y = "Density", title = "Distribution of Unemployment Rate") + theme_minimal() 
+```
+
+<h2>Part 3: Visualization - Geo Maps</h2> <p>To visualize the spatial distribution of crime and unemployment across Chicago, we create geo maps using the crime and demographic data. The shapefile used for the community area boundaries is obtained from the City of Chicago's Data Portal: <a href="https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6" target="_blank">Boundaries - Community Areas (current)</a>.</p>
+```{r, include=FALSE}
+filtered_cca_22 <- demographics_2022_original %>%
+  select(GEOID,
+        GEOG,
+        TOT_POP,
+        INCPERCAP,
+        BACH,
+        GRAD_PROF,
+        MEDINC,
+        UNEMP
+        
+      ) %>%
+  rename(community_area = GEOID) 
+
+crime_data_recent <- crime_data %>% 
+  filter(Year == 2022)
+
+crime_categories <- crime_data_recent %>%
+  mutate(Category = case_when(
+    `Primary Type` %in% c("BATTERY", "ASSAULT", "ROBBERY", "CRIMINAL SEXUAL ASSAULT", "HOMICIDE", "KIDNAPPING", "INTIMIDATION", "CRIM SEXUAL ASSAULT", "HUMAN TRAFFICKING") ~ "Violent crimes",
+    `Primary Type` %in% c("THEFT", "BURGLARY", "MOTOR VEHICLE THEFT", "CRIMINAL DAMAGE", "ARSON") ~ "Property crimes",
+    `Primary Type` %in% c("NARCOTICS", "OTHER NARCOTIC VIOLATION") ~ "Drug-related crimes",
+    `Primary Type` %in% c("WEAPONS VIOLATION", "CONCEALED CARRY LICENSE VIOLATION") ~ "Weapons offenses",
+    `Primary Type` %in% c("OTHER OFFENSE", "DECEPTIVE PRACTICE", "OFFENSE INVOLVING CHILDREN", "CRIMINAL TRESPASS", "INTERFERENCE WITH PUBLIC OFFICER", "PUBLIC PEACE VIOLATION", "PROSTITUTION", "STALKING", "GAMBLING", "LIQUOR LAW VIOLATION", "OBSCENITY", "PUBLIC INDECENCY", "RITUALISM") ~ "Public order crimes",
+    `Primary Type` == "SEX OFFENSE" ~ "Sex offenses",
+    `Primary Type` == "NON-CRIMINAL" ~ "Non-criminal incidents",
+    TRUE ~ "Other"
+  ))
+
+category_pivot_2022 <- crime_categories %>%
+  group_by(`Community Area`, Category) %>%
+  summarise(Count = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = Category, 
+              values_from = Count,
+              values_fill = 0) %>%
+  rename(community_area = `Community Area`)
+
+
+
+category_pivot_2022
+
+
+
+# Merge the crime data with the demographic data
+merged_data <- merge(category_pivot_2022, filtered_cca_22, by = "community_area")
+
+# Calculate the general crime rate
+merged_data$general_crime_rate <- merged_data$`Violent crimes` / merged_data$TOT_POP * 100
+
+# Calculate the violent crime rate
+merged_data$violent_crime_rate <- merged_data$`Violent crimes` / merged_data$TOT_POP * 100
+
+# Calculate the unemployment rate
+merged_data$unemployment_rate <- merged_data$UNEMP / merged_data$TOT_POP * 100
+
+# Select the desired columns for the final dataframe
+final_df <- merged_data %>%
+select(community_area, GEOG, general_crime_rate, unemployment_rate, violent_crime_rate)
+
+# Rename the columns
+colnames(final_df) <- c("Geoid", "GEOG", "General Crime Rate", "Unemployment Rate", "Violent Crime Rate")
+
+# View the resulting dataframe
+print(final_df)
+```
+
+
+
+
+```{r, include=FALSE}
+
+library(sf)
+library(tmap)
+
+# Read the shapefile for Chicago community areas
+chicago_shapefile <- st_read("/Users/adlinfarhana/Documents/stat240/boundaries/geo_export_9e592439-888c-4b65-9398-039b0cfb6192.shp")
+
+# Merge the shapefile with the final_df dataframe
+merged_data <- merge(chicago_shapefile, final_df, by.x = "area_numbe", by.y = "Geoid")
+
+# Map 1: General Crime Rate
+map1 <- tm_shape(merged_data) +
+  tm_fill("General Crime Rate", style = "quantile", palette = "Blues") +
+  tm_layout(title = "General Crime Rate by Community Area in Chicago")
+
+# Map 2: Unemployment Rate
+map2 <- tm_shape(merged_data) +
+  tm_fill("Unemployment Rate", style = "quantile", palette = "Greens") +
+  tm_layout(title = "Unemployment Rate by Community Area in Chicago")
+
+# Map 3: Violent Crime Rate
+map3 <- tm_shape(merged_data) +
+  tm_fill("Violent Crime Rate", style = "quantile", palette = "Reds") +
+  tm_layout(title = "Violent Crime Rate by Community Area in Chicago")
+
+# Display the maps
+
+```
+
+```{r,echo=FALSE}
+map1
+```
+<h3>Map 1: General Crime Rate</h3> <ul> <li>Description: This map shows the distribution of the general crime rate across community areas in Chicago.</li>  </ul> 
+```{r,echo=FALSE}
+map2
+```
+<h3>Map 2: Unemployment Rate</h3> <ul> <li>Description: This map shows the distribution of the unemployment rate across community areas in Chicago.</li> <li>Interpretation: The map highlights the spatial variability in unemployment rates, with certain community areas experiencing higher levels of unemployment compared to others.</li> </ul> 
+```{r,echo=FALSE}
+map3
+```
+<h3>Map 3: Violent Crime Rate</h3> <ul> <li>Description: This map shows the distribution of the violent crime rate across community areas in Chicago.</li> <li>Interpretation: The map identifies hotspots of violent crime, indicating the community areas that are disproportionately affected by violent offenses.</li> </ul>
+
+
+<h1>Discussion:</h1> <p>The analysis presented in this report sheds light on the relationship between crime rates and unemployment in Chicago community areas. While the hypothesis test in Part 1 did not find a significant correlation between the general crime rate and unemployment rate, the focused analysis in Part 2 revealed a strong positive correlation between the unemployment rate and the violent crime rate.</p> <li>Part1 Results: <ul> <li>Correlation coefficient: 0.115</li> <li>p-value: 0.321</li> <li>95% confidence interval: (-0.112, 0.3301)</li> </ul> </li> <li>Interpretation: The correlation coefficient of 0.115 suggests a weak positive correlation between the unemployment rate and the general crime rate. However, the p-value of 0.321 is greater than the significance level of 0.05, indicating that there is not enough evidence to reject the null hypothesis. The 95% confidence interval includes zero, further supporting the lack of a significant correlation.</li> </ul> <p>Conducting Pearson's product-moment correlation test between the unemployment rate and the violent crime rate yields the following results:</p> <ul> <li>Correlation coefficient: 0.780</li> <li>p-value: &lt; 2.2e-16</li> <li>95% confidence interval: (0.673, 0.854)</li> </ul> <p>The correlation coefficient of 0.780 indicates a strong positive linear relationship between the unemployment rate and the violent crime rate. The p-value is extremely small (&lt; 2.2e-16), providing strong evidence to reject the null hypothesis of no correlation. The 95% confidence interval does not include zero, further supporting the presence of a significant positive correlation.</p> 
+
+ <p>These findings have important implications for policymakers and law enforcement agencies. They suggest that addressing unemployment and economic disparities in communities may have a positive impact on reducing violent crime. Targeted interventions and programs aimed at improving employment opportunities and providing support to individuals in high-unemployment areas could be effective strategies for promoting public safety.</p> <p>However, it is crucial to acknowledge the limitations of this analysis. The study relies on reported crimes, which may not capture the full extent of criminal activity. Additionally, the analysis focuses on a single year of data and does not consider other socioeconomic factors that may influence crime rates.</p> <p>Future research could expand on this work by incorporating additional variables, such as education levels, income inequality, and access to social services. Conducting a longitudinal analysis over multiple years could provide insights into the temporal dynamics of the relationship between unemployment and crime. Furthermore, qualitative studies involving community stakeholders and law enforcement personnel could offer valuable context and inform policy recommendations.</p> <h1>Conclusion:</h1> <p>This report investigated the relationship between crime rates and unemployment in Chicago community areas using crime and demographic data from 2022. While the hypothesis test did not find a significant correlation between the general crime rate and unemployment rate, a focused analysis revealed a strong positive correlation between the unemployment rate and the violent crime rate. The geo maps provided a spatial perspective on the distribution of crime and unemployment across the city.</p><h3>Geo Maps Interpretation</h3> <h4>Map 1: General Crime Rate</h4> <p>Description: This map displays the spatial distribution of the general crime rate across different community areas in Chicago. The darker shades of blue represent higher crime rates, while lighter shades indicate lower crime rates.</p> <p>Correlation with the topic: Although the analysis did not find a significant correlation between the general crime rate and unemployment rate, this map provides valuable spatial context by revealing areas with concentrated crime hotspots. These hotspots may coincide with regions experiencing higher unemployment rates and other socioeconomic challenges, as suggested by the focused analysis on violent crime and unemployment.</p> <h4>Map 2: Unemployment Rate</h4> <p>Description: This map visualizes the spatial variability in unemployment rates across community areas in Chicago. The darker shades of green represent higher levels of unemployment, while lighter shades indicate lower unemployment rates.</p> <p>Correlation with the topic: This map directly relates to the central focus of the analysis, which is the relationship between unemployment and crime rates. The spatial distribution of unemployment rates shown in this map can be compared with the crime rate maps to identify potential overlaps or patterns. Areas with higher unemployment rates may correspond to regions with elevated crime rates, particularly for violent crimes, as supported by the strong positive correlation found in Part 2 of the analysis.</p> <h4>Map 3: Violent Crime Rate</h4> <p>Description: This map illustrates the distribution of the violent crime rate across different community areas in Chicago. The darker shades of red signify higher rates of violent crime, while lighter shades represent lower rates.</p> <p>Correlation with the topic: This map is especially relevant to the analysis, as it directly visualizes the spatial patterns of violent crime rates, which were found to have a strong positive correlation with unemployment rates. By comparing this map with the unemployment rate map, it is possible to identify potential hotspots or clusters where high levels of violent crime coincide with areas of elevated unemployment. This visual representation supports the key finding that unemployment and violent crime are significantly correlated in Chicago community areas.</p>  <p>The findings emphasize the importance of addressing unemployment and economic disparities as part of a comprehensive approach to crime prevention and public safety. Policymakers and law enforcement agencies should consider targeted interventions and programs to improve employment opportunities and support individuals in high-unemployment areas.</p> <p>However, further research is needed to fully understand the complex dynamics between crime and socioeconomic factors. For example, we found a strong correlation between specific types of crimes with the time period they occur. </p>
+ 
+```{r,include=FALSE}
+crime_data_filtered <- crime_data %>%
+  filter(Year ==2022) %>%
+  select(Date, `Primary Type`, Arrest, `Community Area`)
+
+crime_data_filtered <- crime_data_filtered %>%
+  mutate(Arrest = factor(Arrest, labels = c("No", "Yes")))
+# Convert the "Date" column to a POSIXct format
+crime_data_filtered$Date <- mdy_hms(crime_data_filtered$Date)
+
+# Create a new column for time period
+crime_data_filtered$Time_Period <- case_when(
+  hour(crime_data_filtered$Date) >= 0 & hour(crime_data_filtered$Date) < 6 ~ "Night",
+  hour(crime_data_filtered$Date) >= 6 & hour(crime_data_filtered$Date) < 12 ~ "Morning",
+  hour(crime_data_filtered$Date) >= 12 & hour(crime_data_filtered$Date) < 18 ~ "Afternoon",
+  hour(crime_data_filtered$Date) >= 18 & hour(crime_data_filtered$Date) < 24 ~ "Evening"
+)
+contingency_table <- table(crime_data_filtered$Time_Period, crime_data_filtered$Arrest)
+
+# Perform the chi-squared test
+chi_square_test <- chisq.test(contingency_table)
+
+# Print the contingency table and test results
+print(contingency_table)
+print(chi_square_test)
+
+# Calculate the arrest rates for each time period
+arrest_rates <- prop.table(contingency_table, margin = 1)
+print(arrest_rates)
+crime_ratio <- crime_data_filtered %>%
+  group_by(Time_Period) %>%
+  summarise(Count = n()) %>%
+  mutate(Ratio = Count / sum(Count))
+
+# Plot the ratio of crimes in each time period
+ggplot(crime_ratio, aes(x = Time_Period, y = Ratio, fill = Time_Period)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Time Period", y = "Ratio of Crimes", title = "Ratio of Crimes by Time Period") +
+  scale_fill_manual(values = c("Night" = "darkblue", "Morning" = "lightblue", "Afternoon" = "orange", "Evening" = "darkred")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Classify the crimes
+crime_categories <- crime_data_filtered %>%
+  mutate(Category = case_when(
+   `Primary Type` %in% c("BATTERY", "ASSAULT", "ROBBERY", "CRIMINAL SEXUAL ASSAULT", "HOMICIDE", "KIDNAPPING", "INTIMIDATION", "CRIM SEXUAL ASSAULT", "HUMAN TRAFFICKING") ~ "Violent crimes",
+    `Primary Type` %in% c("THEFT", "BURGLARY", "MOTOR VEHICLE THEFT", "CRIMINAL DAMAGE", "ARSON") ~ "Property crimes",
+    `Primary Type` %in% c("NARCOTICS", "OTHER NARCOTIC VIOLATION") ~ "Drug-related crimes",
+    `Primary Type` %in% c("WEAPONS VIOLATION", "CONCEALED CARRY LICENSE VIOLATION") ~ "Weapons offenses",
+    `Primary Type` %in% c("OTHER OFFENSE", "DECEPTIVE PRACTICE", "OFFENSE INVOLVING CHILDREN", "CRIMINAL TRESPASS", "INTERFERENCE WITH PUBLIC OFFICER", "PUBLIC PEACE VIOLATION", "PROSTITUTION", "STALKING", "GAMBLING", "LIQUOR LAW VIOLATION", "OBSCENITY", "PUBLIC INDECENCY", "RITUALISM") ~ "Public order crimes",
+    `Primary Type` == "SEX OFFENSE" ~ "Sex offenses",
+    TRUE ~ "Other"
+  ))
+
+
+# Define the time periods
+crime_categories <- crime_categories %>%
+  mutate(TimePeriod = case_when(
+    hour(Date) >= 0 & hour(Date) < 6 ~ "Night (12AM - 6AM)",
+    hour(Date) >= 6 & hour(Date) < 12 ~ "Morning (6AM - 12PM)",
+    hour(Date) >= 12 & hour(Date) < 18 ~ "Afternoon (12PM - 6PM)",
+    hour(Date) >= 18 & hour(Date) < 24 ~ "Evening (6PM - 12AM)"
+  ))
+
+# Calculate the percentage of crimes in each category for each time period
+crime_percentages <- crime_categories %>%
+  group_by(TimePeriod, Category) %>%
+  summarise(Count = n(), .groups = "drop") %>%
+  group_by(TimePeriod) %>%
+  mutate(Percentage = Count / sum(Count) * 100)
+
+# View the result
+print(crime_percentages)
+```
+```{r,echo=FALSE}
+
+# Create a stacked bar chart
+ggplot(crime_percentages, aes(x = TimePeriod, y = Percentage, fill = Category)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Time Period", y = "Percentage", fill = "Crime Category") +
+  ggtitle("Percentage of Crimes by Category and Time Period") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+```{r,include=FALSE}
+# Create a contingency table of TimePeriod and Category
+contingency_table <- table(crime_categories$TimePeriod, crime_categories$Category)
+
+# Perform the chi-squared test
+chi_square_test <- chisq.test(contingency_table)
+
+# Print the contingency table and test results
+print(contingency_table)
+```
+```{r,echo=FALSE}
+print(chi_square_test)
+```
+```{r,include=FALSE}
+# Calculate the percentages for each category and time period
+category_percentages <- prop.table(contingency_table, margin = 2) * 100
+
+# Calculate the percentage change for each category
+category_changes <- apply(category_percentages, 2, function(x) {
+  ((x[4] - x[1]) / x[1]) * 100
+})
+
+# Print the percentage changes
+print(category_changes)
+crime_categories_filtered <- crime_categories[crime_categories$Category != "Other", ]
+
+for (category in unique(crime_categories_filtered$Category)) {
+  cat("Category:", category, "\n")
+  subset_data <- crime_categories_filtered[crime_categories_filtered$Category == category, ]
+  subset_contingency_table <- table(subset_data$TimePeriod)
+  
+  # Check if the table has enough data for chi-squared test
+  if (all(subset_contingency_table > 5)) {
+    subset_chi_square_test <- chisq.test(subset_contingency_table)
+    print(subset_chi_square_test)
+  } else {
+    cat("Not enough data for chi-squared test\n")
+  }
+  
+  cat("\n")
+}
+
+```
+
+
+<p> Through the individual chi-squared tests for each crime category further confirm that there is a significant association between the time period and the occurrence of crimes within each category (all p-values are less than 0.05, indicating statistical significance). The percentage changes show the relative differences in crime occurrences between the "Night" and "Afternoon" time periods for each category. Negative values indicate a decrease in the percentage of crimes from "Afternoon" to "Night." For example, drug-related crimes have the largest percentage decrease (-84.58%) from "Afternoon" to "Night," while "Other" crimes have the smallest decrease (-26.07%).</p>
+
+<p> Other than that, there is also a correlation between races and crimes </p>
+```{r,include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+crime_data_recent <- crime_data %>%
+  filter(Year == 2022)
+
+crime_pivot <- crime_data_recent %>%
+  group_by(`Community Area`, `Primary Type`) %>%
+  summarise(Count = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = `Primary Type`,
+              values_from = Count,
+              values_fill = 0)
+crime_pivot2 <- crime_data_recent %>%
+  group_by(`Community Area`, `Primary Type`) %>%
+  summarise(Count = n())
+
+
+
+income <- demographics_2022_original %>%
+  summarise(GEOID, GEOG, INC_LT_25K, INC_25_50K, INC_50_75K, INC_75_100K,
+            INC_100_150K, INC_GT_150, MEDINC, INCPERCAP, HT_Cost_Typical,
+            HT_Cost_Mod, H_Cost_Typical, H_Cost_Mod, T_Cost_Typical, T_Cost_Mod)
+
+total_crime_list <- crime_pivot %>%
+  mutate(total_crime = rowSums(.)) %>%
+  summarise(`Community Area`, total_crime)
+
+income_list <- demographics_2022_original %>%
+  rename("Community Area" = GEOID) %>%
+  summarise(`Community Area`, GEOG, TOT_POP, MEDINC, INCPERCAP)
+
+sample_data <- income_list %>%
+  full_join(total_crime_list, by = "Community Area") %>%
+  mutate(crime_rate = (total_crime / TOT_POP))
+
+
+sample_sum <- sample_data %>%
+  summarize(across(everything(), list(mean = mean, sd = sd)),
+            n = n(),
+            r = cor(crime_rate, INCPERCAP)) %>%
+  relocate(n)
+
+df_lm <- lm(crime_rate ~ INCPERCAP, data = sample_data)
+cf <- coef(df_lm)
+summary(df_lm)
+
+ci <- 1.311743e-01 + c(-1, 1) * qt(0.975, 75) * -8.742145e-07
+
+b <- 1.311743e-01
+t <- b / 0.05944
+pt(t, df = 75, lower.tail = TRUE)
+
+race <- demographics_2022_original %>%
+  summarise(GEOID, GEOG, TOT_POP, WHITE, HISP, BLACK, ASIAN, OTHER)
+
+race_sample <- race %>%
+  rename("Community Area" = GEOID) %>%
+  full_join(total_crime_list, by = "Community Area") %>%
+  mutate(P_WHITE = WHITE / TOT_POP,
+         P_HISP = HISP / TOT_POP,
+         P_BLACK = BLACK / TOT_POP,
+         P_ASIAN = ASIAN / TOT_POP,
+         P_OTHER = OTHER / TOT_POP,
+         crime_rate = (total_crime / TOT_POP))
+
+
+
+df_lm_MODEL <- lm(crime_rate ~ P_WHITE + P_HISP + P_BLACK + P_ASIAN + P_OTHER, data = race_sample)
+summary(df_lm_MODEL)
+
+df_lm_WHITE <- lm(crime_rate ~ P_WHITE, data = race_sample)
+summary(df_lm_WHITE)
+cf <- coef(df_lm_WHITE)
+b <- -0.1291097
+ci <- b + c(-1, 1) * qt(0.975, 75) * 0.05165
+t <- b / 0.05165
+pt(t, df = 75, lower.tail = TRUE)
+
+
+df_lm_HISP <- lm(crime_rate ~ P_HISP, data = race_sample)
+summary(df_lm_HISP)
+cf <- coef(df_lm_HISP)
+b <- -0.1104367
+ci <- b + c(-1, 1) * qt(0.975, 75) * 0.05392
+t <- b / 0.05392
+pt(t, df = 75, lower.tail = TRUE)
+
+
+df_lm_BLACK <- lm(crime_rate ~ P_BLACK, data = race_sample)
+summary(df_lm_BLACK)
+cf <- coef(df_lm_BLACK)
+b <- 0.12633533
+ci <- b + c(-1, 1) * qt(0.975, 75) * 0.6268
+t <- b / 0.6268
+pt(t, df = 75, lower.tail = TRUE)
+
+
+df_lm_ASIAN <- lm(crime_rate ~ P_ASIAN, data = race_sample)
+summary(df_lm_ASIAN)
+cf <- coef(df_lm_ASIAN)
+b <- -0.1169435
+ci <- b + c(-1, 1) * qt(0.975, 75) * -0.1169435
+t <- b / 0.04218
+pt(t, df = 75, lower.tail = TRUE)
+
+
+df_lm_OTHER <- lm(crime_rate ~ P_OTHER, data = race_sample)
+summary(df_lm_OTHER)
+cf <- coef(df_lm_OTHER)
+b <- -0.4676100
+ci <- b + c(-1, 1) * qt(0.975, 75) * 0.06157
+t <- b / 0.06157
+pt(t, df = 75, lower.tail = TRUE)
+
+```
+```{r,echo=FALSE}
+ggplot(race_sample, aes(x = P_WHITE, y = crime_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplot(race_sample, aes(x = P_HISP, y = crime_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplot(race_sample, aes(x = P_BLACK, y = crime_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplot(race_sample, aes(x = P_ASIAN, y = crime_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplot(race_sample, aes(x = P_OTHER, y = crime_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+<h2>Potential Shortcomings of the Analysis</h2> <p>While the analysis presented in this report provides valuable insights into the relationship between crime rates, unemployment, time periods, and race in Chicago community areas, there are several potential shortcomings to consider:</p> <ol> <li>The analysis relies on reported crimes, which may not capture the full extent of criminal activity in the city. Unreported crimes or underreporting in certain areas could affect the accuracy of the findings.</li> <li>The analysis focuses on a single year of data (2022) and does not consider long-term trends or changes over time. Analyzing data from multiple years could provide a more comprehensive understanding of the relationships between the variables.</li> <li>The analysis does not account for other potential confounding factors that may influence crime rates, such as education levels, income inequality, access to social services, or community-specific characteristics. These factors could have significant impacts on crime rates but were not included in the current analysis.</li> <li>The categorization of crimes into broad categories (e.g., violent crimes, property crimes) may oversimplify the complex nature of crime. Each category encompasses a range of different offenses with varying severity and underlying causes.</li> <li>The analysis relies on statistical tests and correlations, which do not necessarily imply causation. While the findings suggest associations between variables, they do not establish causal relationships. Other factors not considered in the analysis may be driving the observed patterns.</li> </ol> <h2>Future Directions for Additional Work</h2> <p>To address the limitations and expand upon the current analysis, several potential future directions can be explored:</p> <h3>New Questions</h3> <ul> <li>How have the relationships between crime rates, unemployment, time periods, and race changed over time in Chicago? Conducting a longitudinal analysis could reveal important trends and shifts in these relationships.</li> <li>What are the specific socioeconomic and community-level factors that contribute to crime rates in different areas of Chicago? Investigating variables such as education levels, income inequality, housing conditions, and access to resources could provide a more comprehensive understanding of the drivers of crime.</li> <li>How do the findings from Chicago compare to other major cities in the United States? Replicating the analysis in different urban contexts could shed light on the generalizability of the relationships observed in this study.</li> </ul> <h3>Different Methods to Address the Same Questions</h3> <ul> <li>Employ more advanced statistical techniques, such as multilevel modeling or spatial regression, to account for the hierarchical structure of the data and spatial dependencies between community areas.</li> <li>Conduct qualitative research, such as interviews or focus groups with community members, law enforcement officials, and policymakers, to gain a deeper understanding of the factors contributing to crime and the perceived effectiveness of interventions.</li> <li>Utilize machine learning algorithms to identify patterns and predict crime rates based on a wider range of variables, including demographic, socioeconomic, and environmental factors.</li> </ul> <h3>New Data to Collect</h3> <ul> <li>Gather data on additional socioeconomic indicators, such as education levels, income inequality, housing conditions, and access to social services, to incorporate into the analysis.</li> <li>Collect data on community-specific characteristics, such as social cohesion, collective efficacy, and neighborhood disorder, to explore their relationship with crime rates.</li> <li>Obtain data on crime prevention and intervention programs implemented in different community areas to assess their impact on crime rates over time.</li> <li>Collaborate with law enforcement agencies to access more detailed crime data, including information on specific offenses, victim characteristics, and offender profiles, to conduct more granular analyses.</li> </ul>
+
+<h1> References</h>
